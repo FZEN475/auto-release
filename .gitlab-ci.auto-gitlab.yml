@@ -1,0 +1,135 @@
+
+include:
+  - local: 'templates/auto-release/template.yml'
+    inputs:
+      auto-rebase: true
+      auto-approve: true
+
+      auto-merge: true
+      auto-remove-source-branch: true
+
+      auto-tag: true
+      auto-tag-pattern: '/^\d+\.\d+\.\d+$/'
+      auto-tag-version-major: 0
+      auto-tag-version-minor: 4
+
+      auto-release: true
+
+.auto-release-needs:
+  - job: generate_env_file
+  
+.release-artefacts:
+  - /tmp/artefacts/
+
+#upload-file-example:
+#  stage: generator
+#  image: registry.gitlab.com/gitlab-org/cli:latest
+#  before_script:
+#    - !reference [ .install-utility ]
+#  script:
+#    glab auth login --hostname $CI_SERVER_HOST --job-token $CI_JOB_TOKEN
+#    
+#    log_info "Login success."
+#    echo "$CI_COMMIT_TAG" /api-example.txt
+#    echo "$CI_COMMIT_TAG" /ui-example.txt
+#    glab release upload v1.0.1 '/path/to/asset.zip#My display label'
+
+#    glab release upload v1.0.1 --assets-links='
+#      [
+#        {
+#          "name": "Asset1",
+#          "url": "https://<domain>/some/location/1",
+#          "link_type": "other",
+#          "direct_asset_path": "path/to/file"
+#        }
+#      ]'
+
+generate_env_file:
+  stage: generator
+  image: registry.gitlab.com/gitlab-org/cli:latest
+  before_script:
+    - !reference [ .install-utility ]
+  script:
+    - log_info "Создаём dotenv файл для релиза"
+    - |
+      
+      TAG="${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
+      
+      arg_image=$(printf '```bash\ndocker pull %s:%s\n```\n' \
+        "$CI_REGISTRY_IMAGE" "$TAG")
+      
+      log_info "$arg_image"
+      
+      arg_latest=$(printf '```bash\ndocker pull %s:%s\n```\n---\n' \
+        "$CI_REGISTRY_IMAGE" "latest")
+      
+      log_info "$arg_latest"
+      
+      # Формируем release notes для образа docker
+      release_notes_docker=$(jq -n \
+        --arg head "Docker image" \
+        --arg image "$arg_image" \
+        --arg latest "$arg_latest" \
+        '{head: $head, image: $image, latest: $latest}' | base64 -w0
+      )
+      
+      # helm_package_name
+      # helm_package_version
+
+      arg_image=$(printf '```bash\noci://%s/%s/charts/%s:%s\n```\n---\n' \
+        "$CI_REGISTRY" "$CI_PROJECT_PATH" "auto-release" "$TAG")
+        
+      log_info "$arg_image"
+      latest_url="[latest]($CI_PROJECT_URL/-/releases/permalink/latest)"
+      # Формируем release notes для helm chart
+      release_notes_helm=$(jq -n \
+        --arg head "Helm cart oci" \
+        --arg image "$arg_image" \
+        --arg latest "$latest_url" \
+        '{head: $head, image: $image, latest: $latest}' | base64 -w0
+      )
+      
+      mkdir -p artefacts/
+      
+      echo "$TAG" > artefacts/file_${TAG}.txt
+      echo "$TAG" > artefacts/file_latest.txt
+      
+      curl --location --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+           --upload-file artefacts/file_${TAG}.txt \
+           "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/example/${TAG}/file.txt"
+
+      log_info "$(ls -al artefacts/)"
+      
+      # json можно использовать для загрузки файла в Package registry
+      release_asset_file=$(jq -n \
+        --arg name "file-${TAG}.txt" \
+        --arg direct_asset_path "/file.txt" \
+        --arg link_type "other" \
+        --arg url "${CI_API_V4_URL}/projects/$CI_PROJECT_ID/packages/generic/example/${TAG}/file.txt" \
+        '{name: $name, direct_asset_path: $direct_asset_path, link_type: $link_type, url: $url}' | base64 -w0
+      )
+      
+      release_asset_file_latest=$(jq -n \
+        --arg name "file-latest.txt" \
+        --arg direct_asset_path "/file-latest.txt" \
+        --arg link_type "other" \
+        --arg url "$CI_PROJECT_URL/-/releases/permalink/latest/downloads/file.txt" \
+        '{name: $name, direct_asset_path: $direct_asset_path, link_type: $link_type, url: $url}' | base64 -w0
+      )
+
+      {
+        echo "release_notes_docker=$release_notes_docker"
+        echo "release_notes_ui=$release_notes_helm"
+        echo "release_asset_file=$release_asset_file"
+        echo "release_asset_file_latest=$release_asset_file_latest"
+      } > release.env
+      
+      log_info "$(cat release.env)"
+  rules:
+    - !reference [ .tagged, only ]
+    - when: on_success
+  artifacts:
+    reports:
+      dotenv: release.env
+    paths:
+      - artefacts/
