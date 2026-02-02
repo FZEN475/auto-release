@@ -21,29 +21,6 @@ include:
 .release-artefacts:
   - /tmp/artefacts/
 
-#upload-file-example:
-#  stage: generator
-#  image: registry.gitlab.com/gitlab-org/cli:latest
-#  before_script:
-#    - !reference [ .install-utility ]
-#  script:
-#    glab auth login --hostname $CI_SERVER_HOST --job-token $CI_JOB_TOKEN
-#    
-#    log_info "Login success."
-#    echo "$CI_COMMIT_TAG" /api-example.txt
-#    echo "$CI_COMMIT_TAG" /ui-example.txt
-#    glab release upload v1.0.1 '/path/to/asset.zip#My display label'
-
-#    glab release upload v1.0.1 --assets-links='
-#      [
-#        {
-#          "name": "Asset1",
-#          "url": "https://<domain>/some/location/1",
-#          "link_type": "other",
-#          "direct_asset_path": "path/to/file"
-#        }
-#      ]'
-
 generate_env_file:
   stage: generator
   image: registry.gitlab.com/gitlab-org/cli:latest

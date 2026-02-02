@@ -613,15 +613,3 @@ stages:
       when: never
     - !reference [ .auto-release-rules-extends ]
     - when: on_success
-
-
-
-#
-#      fi
-#      glab release upload "$TAG" --assets-links="[$(echo "$release_asset_file" | base64 -d)]"
-#
-#      if [ -n "$CI_COMMIT_TAG" ]; then
-#      glab release upload "latest" --assets-links="[$(echo "release_asset_file_latest" | base64 -d)]"
-#      else
-#      log_info "CI_COMMIT_TAG пустой — пропускаем upload"
-#      fi
