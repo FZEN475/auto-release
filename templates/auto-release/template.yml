@@ -578,10 +578,11 @@ stages:
     - |
       DESC_FILE="desc.md"
       NOTES_JSON=$(generate_json release_notes_)
-
+      log_info "NOTES_JSON: $NOTES_JSON"
       ASSETS_JSON=$(generate_json release_asset_)
-
+      log_info "ASSETS_JSON: $ASSETS_JSON"
       generate_release_description "$DESC_FILE" "$NOTES_JSON"
+      
       log_info "DESC_FILE: $(cat $DESC_FILE)"
 
       glab auth login --hostname $CI_SERVER_HOST --job-token $CI_JOB_TOKEN
